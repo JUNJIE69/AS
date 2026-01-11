@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文本阅读器 - 功能机版</title>
+    <style type="text/css">
+        /* 功能机兼容CSS - 只使用基本CSS2 */
+        * {
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            background: #ffffff;
+            color: #000000;
+            line-height: 1.5;
+            padding: 5px;
+            margin: 0;
+        }
+        
+        h1 {
+            font-size: 20px;
+            text-align: center;
+            background: #0066cc;
+            color: white;
+            padding: 10px;
+            margin: 0 0 10px 0;
+        }
+        
+        .info {
+            background: #f0f0f0;
+            padding: 8px;
+            margin: 0 0 10px 0;
+            border: 1px solid #ccc;
+            font-size: 14px;
+        }
+        
+        .content {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 0 0 10px 0;
+            min-height: 300px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 18px;
+            line-height: 1.8;
+        }
+        
+        .controls {
+            text-align: center;
+            margin: 10px 0;
+        }
+        
+        .nav-row {
+            margin: 5px 0;
+        }
+        
+        .button {
+            display: inline-block;
+            padding: 8px 15px;
+            margin: 2px;
+            background: #0066cc;
+            color: white;
+            text-decoration: none;
+            border: 2px outset #0066cc;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        
+        .button:active {
+            border: 2px inset #0066cc;
+        }
+        
+        .button:disabled {
+            background: #999999;
+            border: 2px outset #999999;
+            cursor: default;
+        }
+        
+        .jump-box {
+            background: #f0f0f0;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            display: none;
+        }
+        
+        .page-input {
+            width: 60px;
+            padding: 5px;
+            font-size: 16px;
+            margin: 0 5px;
+        }
+        
+        .page-indicator {
+            text-align: center;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        
+        .dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #ccc;
+            margin: 0 3px;
+            border-radius: 50%;
+        }
+        
+        .dot.active {
+            background: #0066cc;
+        }
+        
+        .status {
+            background: #ffffcc;
+            padding: 8px;
+            margin: 10px 0;
+            border: 1px solid #ffcc00;
+            font-size: 14px;
+        }
+        
+        .error {
+            background: #ffcccc;
+            padding: 8px;
+            margin: 10px 0;
+            border: 1px solid #ff0000;
+            font-size: 14px;
+        }
+        
+        /* 功能机特殊样式 */
+        a {
+            -webkit-tap-highlight-color: rgba(0,0,0,0);
+        }
+        
+        /* 避免Opera Mini重新布局 */
+        div {
+            -opera-mini-break: avoid;
+        }
+    </style>
+</head>
+<body>
+    <h1>📖 功能机文本阅读器</h1>
+    
+    <div class="info">
+        <div>第 <span id="currentPage">1</span> 页 / 共 <span id="totalPages">0</span> 页</div>
+        <div>总字数: <span id="totalChars">0</span></div>
+        <div id="networkInfo">加载中...</div>
+    </div>
+    
+    <div class="content" id="contentText">
+        正在加载文本内容...
+    </div>
+    
+    <div class="page-indicator" id="pageIndicator"></div>
+    
+    <div class="controls">
+        <div class="nav-row">
+            <a href="javascript:void(0)" class="button" id="prevBtn" onclick="prevPage()" style="display:inline-block;">◀ 上一页</a>
+            <a href="javascript:void(0)" class="button" onclick="toggleJump()" style="display:inline-block;">📖 跳转</a>
+            <a href="javascript:void(0)" class="button" id="nextBtn" onclick="nextPage()" style="display:inline-block;">下一页 ▶</a>
+        </div>
+        
+        <div class="nav-row">
+            <a href="javascript:void(0)" class="button" onclick="goToPage(1)" style="display:inline-block;">第一页</a>
+            <a href="javascript:void(0)" class="button" onclick="goToEnd()" style="display:inline-block;">最后一页</a>
+            <a href="javascript:void(0)" class="button" onclick="reloadText()" style="display:inline-block;">🔄 刷新</a>
+        </div>
+    </div>
+    
+    <div class="jump-box" id="jumpBox">
+        <div style="margin-bottom:5px;">跳转到页码:</div>
+        <input type="text" class="page-input" id="pageInput" value="1">
+        <a href="javascript:void(0)" class="button" onclick="jumpToPage()" style="display:inline-block;">确定</a>
+        <a href="javascript:void(0)" class="button" onclick="toggleJump()" style="display:inline-block;">取消</a>
+    </div>
+    
+    <div id="statusMsg" class="status" style="display:none;"></div>
+    <div id="errorMsg" class="error" style="display:none;"></div>
+    
+    <!-- 简单统计 -->
+    <div style="text-align:center; font-size:12px; color:#666; margin-top:20px; padding-top:10px; border-top:1px solid #ddd;">
+        功能机兼容版 | 每页200字
+    </div>
+
+    <script type="text/javascript">
+        // ========== 极简配置 ==========
+        // 使用GitHub Raw地址（最兼容）
+        var GITHUB_USERNAME = 'JUNJIE69';  // 修改这里
+        var GITHUB_REPO = 'AS';
+        var TEXT_FILE = 'content.txt';
+        var TEXT_URL = 'https://raw.githubusercontent.com/' + GITHUB_USERNAME + '/' + GITHUB_REPO + '/main/' + TEXT_FILE;
+        
+        // 备用地址（如果GitHub被屏蔽）
+        var BACKUP_URL = 'https://cdn.statically.io/gh/' + GITHUB_USERNAME + '/' + GITHUB_REPO + '/main/' + TEXT_FILE;
+        
+        // ========== 全局变量 ==========
+        var fullText = '';
+        var totalPages = 0;
+        var currentPage = 1;
+        var wordsPerPage = 200;
+        
+        // ========== 兼容性检测 ==========
+        function isOperaMini() {
+            return navigator.userAgent.indexOf('Opera Mini') > -1;
+        }
+        
+        function isUCMini() {
+            return navigator.userAgent.indexOf('UCBrowser') > -1 && navigator.userAgent.indexOf('Mini') > -1;
+        }
+        
+        // ========== 显示消息 ==========
+        function showMessage(msg, type) {
+            var msgEl = document.getElementById('statusMsg');
+            var errorEl = document.getElementById('errorMsg');
+            
+            if (type === 'error') {
+                msgEl.style.display = 'none';
+                errorEl.innerHTML = msg;
+                errorEl.style.display = 'block';
+            } else {
+                errorEl.style.display = 'none';
+                msgEl.innerHTML = msg;
+                msgEl.style.display = 'block';
+                
+                // 3秒后自动隐藏
+                setTimeout(function() {
+                    msgEl.style.display = 'none';
+                }, 3000);
+            }
+        }
+        
+        // ========== 加载文本 ==========
+        function loadText() {
+            showMessage('正在加载文本...', 'info');
+            document.getElementById('contentText').innerHTML = '正在加载，请稍候...';
+            
+            // 使用XMLHttpRequest（功能机兼容）
+            var xhr = new XMLHttpRequest();
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState == 4) {
+                    if (xhr.status == 200) {
+                        fullText = xhr.responseText;
+                        processText();
+                        showMessage('加载成功！', 'info');
+                    } else {
+                        // 尝试备用地址
+                        loadBackup();
+                    }
+                }
+            };
+            
+            xhr.open('GET', TEXT_URL + '?t=' + new Date().getTime(), true);
+            xhr.timeout = 15000; // 15秒超时
+            xhr.ontimeout = function() {
+                loadBackup();
+            };
+            xhr.send();
+        }
+        
+        function loadBackup() {
+            var xhr = new XMLHttpRequest();
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState == 4) {
+                    if (xhr.status == 200) {
+                        fullText = xhr.responseText;
+                        processText();
+                        showMessage('从备用地址加载成功', 'info');
+                    } else {
+                        showMessage('加载失败，请检查网络和配置', 'error');
+                        document.getElementById('contentText').innerHTML = 
+                            '加载失败！请检查：\n1. GitHub用户名是否正确\n2. 网络连接\n3. 文件是否存在\n\n当前配置：\n用户：' + GITHUB_USERNAME + '\n仓库：' + GITHUB_REPO;
+                    }
+                }
+            };
+            
+            xhr.open('GET', BACKUP_URL + '?t=' + new Date().getTime(), true);
+            xhr.timeout = 10000;
+            xhr.send();
+        }
+        
+        function reloadText() {
+            loadText();
+        }
+        
+        // ========== 处理文本 ==========
+        function processText() {
+            // 计算总字数
+            var charCount = fullText.length;
+            document.getElementById('totalChars').innerHTML = charCount;
+            
+            // 计算总页数
+            totalPages = Math.ceil(charCount / wordsPerPage);
+            if (totalPages < 1) totalPages = 1;
+            document.getElementById('totalPages').innerHTML = totalPages;
+            
+            // 显示第一页
+            currentPage = 1;
+            updatePage();
+            
+            // 更新网络信息
+            var browserInfo = '';
+            if (isOperaMini()) browserInfo = 'Opera Mini';
+            else if (isUCMini()) browserInfo = 'UC Mini';
+            else browserInfo = '标准浏览器';
+            
+            document.getElementById('networkInfo').innerHTML = 
+                '浏览器：' + browserInfo + ' | 页数：' + totalPages + '页';
+        }
+        
+        // ========== 分页功能 ==========
+        function getPageText(page) {
+            var start = (page - 1) * wordsPerPage;
+            var end = start + wordsPerPage;
+            if (end > fullText.length) end = fullText.length;
+            
+            var pageText = fullText.substring(start, end);
+            
+            // 添加页眉页脚
+            var header = '第 ' + page + ' 页 / 共 ' + totalPages + ' 页\n';
+            header += '字数：' + fullText.length + '字\n';
+            header += '────────────────\n\n';
+            
+            var footer = '\n────────────────\n';
+            if (page == totalPages) {
+                footer += '📚 已到末尾';
+            } else {
+                footer += '使用下方按钮翻页';
+            }
+            
+            return header + pageText + footer;
+        }
+        
+        function updatePage() {
+            // 更新内容
+            document.getElementById('contentText').innerHTML = getPageText(currentPage);
+            document.getElementById('currentPage').innerHTML = currentPage;
+            
+            // 更新按钮状态
+            document.getElementById('prevBtn').className = 
+                (currentPage <= 1) ? 'button' : 'button';
+            document.getElementById('prevBtn').style.opacity = 
+                (currentPage <= 1) ? '0.5' : '1';
+                
+            document.getElementById('nextBtn').className = 
+                (currentPage >= totalPages) ? 'button' : 'button';
+            document.getElementById('nextBtn').style.opacity = 
+                (currentPage >= totalPages) ? '0.5' : '1';
+            
+            // 更新分页指示器
+            updatePageIndicator();
+            
+            // 更新URL（简单版）
+            if (history.replaceState) {
+                try {
+                    var url = window.location.pathname + '?page=' + currentPage;
+                    history.replaceState(null, '', url);
+                } catch(e) {}
+            }
+        }
+        
+        // ========== 分页指示器 ==========
+        function updatePageIndicator() {
+            var indicator = document.getElementById('pageIndicator');
+            var html = '';
+            var dotsToShow = 5; // 显示5个点
+            
+            var startPage = currentPage - 2;
+            if (startPage < 1) startPage = 1;
+            var endPage = startPage + dotsToShow - 1;
+            if (endPage > totalPages) {
+                endPage = totalPages;
+                startPage = endPage - dotsToShow + 1;
+                if (startPage < 1) startPage = 1;
+            }
+            
+            for (var i = startPage; i <= endPage; i++) {
+                if (i == currentPage) {
+                    html += '<span class="dot active"></span>';
+                } else {
+                    html += '<span class="dot" onclick="goToPage(' + i + ')"></span>';
+                }
+            }
+            
+            indicator.innerHTML = html;
+        }
+        
+        // ========== 翻页功能 ==========
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                updatePage();
+            }
+        }
+        
+        function nextPage() {
+            if (currentPage < totalPages) {
+                currentPage++;
+                updatePage();
+            }
+        }
+        
+        function goToPage(page) {
+            if (page >= 1 && page <= totalPages) {
+                currentPage = page;
+                updatePage();
+            }
+        }
+        
+        function goToEnd() {
+            currentPage = totalPages;
+            updatePage();
+        }
+        
+        // ========== 跳转功能 ==========
+        function toggleJump() {
+            var jumpBox = document.getElementById('jumpBox');
+            if (jumpBox.style.display == 'block') {
+                jumpBox.style.display = 'none';
+            } else {
+                jumpBox.style.display = 'block';
+                document.getElementById('pageInput').value = currentPage;
+                document.getElementById('pageInput').focus();
+                document.getElementById('pageInput').select();
+            }
+        }
+        
+        function jumpToPage() {
+            var input = document.getElementById('pageInput');
+            var page = parseInt(input.value);
+            
+            if (!isNaN(page) && page >= 1 && page <= totalPages) {
+                currentPage = page;
+                updatePage();
+                toggleJump();
+            } else {
+                alert('请输入 1 到 ' + totalPages + ' 之间的数字');
+                input.focus();
+                input.select();
+            }
+        }
+        
+        // ========== URL参数读取 ==========
+        function getPageFromURL() {
+            var url = window.location.search;
+            var match = url.match(/[?&]page=(\d+)/);
+            if (match) {
+                var page = parseInt(match[1]);
+                if (page >= 1 && page <= totalPages) {
+                    return page;
+                }
+            }
+            return 1;
+        }
+        
+        // ========== 键盘快捷键 ==========
+        document.onkeydown = function(e) {
+            e = e || window.event;
+            var key = e.keyCode || e.which;
+            
+            // 左键/上键：上一页
+            if (key == 37 || key == 38) {
+                prevPage();
+                return false;
+            }
+            
+            // 右键/下键：下一页
+            if (key == 39 || key == 40) {
+                nextPage();
+                return false;
+            }
+            
+            // Home键：第一页
+            if (key == 36) {
+                goToPage(1);
+                return false;
+            }
+            
+            // End键：最后一页
+            if (key == 35) {
+                goToEnd();
+                return false;
+            }
+            
+            // J键：跳转
+            if (key == 74 && (e.ctrlKey || e.metaKey)) {
+                toggleJump();
+                return false;
+            }
+        };
+        
+        // ========== 初始化 ==========
+        function init() {
+            // 检查配置
+            if (GITHUB_USERNAME == '你的GitHub用户名') {
+                document.getElementById('contentText').innerHTML = 
+                    '请先修改配置：\n\n打开网页源代码\n找到第177行\n将"你的GitHub用户名"\n改为您的实际用户名\n\n然后保存并刷新页面';
+                return;
+            }
+            
+            // 加载文本
+            loadText();
+            
+            // 尝试从URL读取页码
+            setTimeout(function() {
+                var page = getPageFromURL();
+                if (page != currentPage && fullText) {
+                    currentPage = page;
+                    updatePage();
+                }
+            }, 500);
+            
+            // 显示浏览器信息
+            var ua = navigator.userAgent;
+            var browser = '未知';
+            if (ua.indexOf('Opera Mini') > -1) browser = 'Opera Mini';
+            else if (ua.indexOf('UCBrowser') > -1) browser = 'UC浏览器';
+            else if (ua.indexOf('Nokia') > -1) browser = '诺基亚浏览器';
+            else if (ua.indexOf('Samsung') > -1) browser = '三星浏览器';
+            else browser = '标准浏览器';
+            
+            console.log('浏览器：' + browser);
+        }
+        
+        // 页面加载完成时初始化
+        if (document.addEventListener) {
+            document.addEventListener('DOMContentLoaded', init);
+        } else if (document.attachEvent) {
+            document.attachEvent('onDOMContentLoaded', init);
+        } else {
+            window.onload = init;
+        }
+        
+        // 传统方式确保执行
+        window.onload = init;
+    </script>
+</body>
+</html>
